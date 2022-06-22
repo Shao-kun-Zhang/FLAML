@@ -59,6 +59,7 @@ class BlendSearch(Searcher):
         seed: Optional[int] = 20,
         cost_attr: Optional[str] = "auto",
         experimental: Optional[bool] = False,
+        lexico_info: Optional[dict] = None,
         use_incumbent_result_in_evaluation=False,
     ):
         """Constructor.
@@ -123,6 +124,7 @@ class BlendSearch(Searcher):
         self.penalty = PENALTY  # penalty term for constraints
         self._metric, self._mode = metric, mode
         self._use_incumbent_result_in_evaluation = use_incumbent_result_in_evaluation
+        self.lexico_info = lexico_info
         init_config = low_cost_partial_config or {}
         if not init_config:
             logger.info(
@@ -172,6 +174,7 @@ class BlendSearch(Searcher):
             max_resource,
             reduction_factor,
             self.cost_attr,
+            self.lexico_info,
             seed,
         )
         if global_search_alg is not None:
@@ -310,7 +313,8 @@ class BlendSearch(Searcher):
         self._set_deadline()
         self._is_ls_ever_converged = False
         self._subspace = {}  # the subspace for each trial id
-        self._metric_target = np.inf * self._ls.metric_op
+        if self.lexico_info is None:
+            self._metric_target = np.inf * self._ls.metric_op
         self._search_thread_pool = {
             # id: int -> thread: SearchThread
             0: SearchThread(self._ls.mode, self._gs, self.cost_attr, self._eps)
@@ -377,7 +381,7 @@ class BlendSearch(Searcher):
     def is_ls_ever_converged(self):
         return self._is_ls_ever_converged
 
-    def on_trial_complete(
+    def on_trial_complete( 
         self, trial_id: str, result: Optional[Dict] = None, error: bool = False
     ):
         """search thread updater and cleaner."""
@@ -426,11 +430,12 @@ class BlendSearch(Searcher):
             else:  # add to result cache
                 self._result[signature] = result
                 # update target metric if improved
-                objective = result[self._ls.metric]
-                if (objective - self._metric_target) * self._ls.metric_op < 0:
-                    self._metric_target = objective
-                    if self._ls.resource:
-                        self._best_resource = config[self._ls.resource_attr]
+                if self.lexico_info is None:
+                    objective = result[self._ls.metric]
+                    if (objective - self._metric_target) * self._ls.metric_op < 0:
+                        self._metric_target = objective
+                        if self._ls.resource:
+                            self._best_resource = config[self._ls.resource_attr]
                 if thread_id:
                     if not self._metric_constraint_satisfied:
                         # no point has been found to satisfy metric constraint
@@ -475,12 +480,16 @@ class BlendSearch(Searcher):
         ):
             del self._subspace[trial_id]
 
-    def _create_thread(self, config, result, space):
+    def _create_thread(self, config, result, space): 
+        if self.lexico_info is None:
+            obj = result[self._ls.metric]
+        else:
+            obj = {k:result[k] for k in self.lexico_info["metric_priority"]}
         self._search_thread_pool[self._thread_count] = SearchThread(
             self._ls.mode,
             self._ls.create(
                 config,
-                result[self._ls.metric],
+                obj,
                 cost=result.get(self.cost_attr, 1),
                 space=space,
             ),
@@ -537,7 +546,7 @@ class BlendSearch(Searcher):
                 elif value < admissible_min[key]:
                     admissible_min[key] = value
 
-    def _create_condition(self, result: Dict) -> bool:
+    def _create_condition(self, result: Dict) -> bool: 
         """create thread condition"""
         if len(self._search_thread_pool) < 2:
             return True
@@ -772,7 +781,7 @@ class BlendSearch(Searcher):
                 config[INCUMBENT_RESULT] = choice_thread.best_result
         return config
 
-    def _should_skip(self, choice, trial_id, config, space) -> bool:
+    def _should_skip(self, choice, trial_id, config, space) -> bool: 
         """if config is None or config's result is known or constraints are violated
         return True; o.w. return False
         """
@@ -1022,6 +1031,7 @@ class BlendSearchTuner(BlendSearch, NNITuner):
             self._ls.max_resource,
             self._ls.resource_multiple_factor,
             cost_attr=self.cost_attr,
+            lexico_info = self.lexico_info,
             seed=self._ls.seed,
         )
         if self._gs is not None:

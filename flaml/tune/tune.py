@@ -147,6 +147,7 @@ def run(
     max_failure: Optional[int] = 100,
     use_ray: Optional[bool] = False,
     use_incumbent_result_in_evaluation: Optional[bool] = None,
+    lexico_info: Optional[dict] = None,
     **ray_args,
 ):
     """The trigger for HPO.
@@ -309,6 +310,8 @@ def run(
     old_verbose = _verbose
     old_running_trial = _running_trial
     old_training_iteration = _training_iteration
+    if lexico_info is not None:
+        use_ray = False
     if not use_ray:
         _verbose = verbose
         old_handlers = logger.handlers
@@ -368,8 +371,10 @@ def run(
             scheduler = None
         try:
             import optuna as _
-
-            SearchAlgorithm = BlendSearch
+            if lexico_info is None:
+                SearchAlgorithm = BlendSearch
+            else:
+                SearchAlgorithm = CFO
         except ImportError:
             SearchAlgorithm = CFO
             logger.warning(
@@ -393,6 +398,7 @@ def run(
             config_constraints=config_constraints,
             metric_constraints=metric_constraints,
             use_incumbent_result_in_evaluation=use_incumbent_result_in_evaluation,
+            lexico_info = lexico_info,
         )
     else:
         if metric is None or mode is None:

@@ -134,7 +134,7 @@ class SearchThread:
         if result:
             self.cost_last = result.get(self.cost_attr, 1)
             self.cost_total += self.cost_last
-            if self._search_alg.metric in result:
+            if self._search_alg.metric in result and self._search_alg.lexico_info is None:
                 obj = result[self._search_alg.metric] * self._metric_op
                 if obj < self.obj_best1 or self.best_result is None:
                     self.cost_best2 = self.cost_best1
@@ -143,7 +143,8 @@ class SearchThread:
                     self.obj_best1 = obj
                     self.cost_best = self.cost_last
                     self.best_result = result
-            self._update_speed()
+            if self._search_alg.lexico_info is None:
+                self._update_speed()
         self.running -= 1
         assert self.running >= 0
 
