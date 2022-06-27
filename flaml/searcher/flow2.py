@@ -231,18 +231,13 @@ class FLOW2(Searcher):
 
     def lexico_compare(self, result) -> bool:
         """Compare with incumbent over lexicographic preference"""
-        print("---------------------check_log-------------------------")
-        print("lexico_best", self.lexico_best)
-        print("result", result)
-        print("incumbent", self.best_obj)
-        print("-------------------------------------------------------")
         if self.lexico_best is None:
             self.lexico_best = {k:result[k] for k in self.lexico_info["metric_priority"]}
             return True
         for k_metric in self.lexico_info["metric_priority"]:
             k_T = self.lexico_info["tolerance"][k_metric]
             k_c = self.lexico_info["target"][k_metric]
-            B_lower = self.lexico_best[k_metric] if self.lexico_best[k_metric] > k_c else float('inf')
+            B_lower = self.lexico_best[k_metric] if self.lexico_best[k_metric] > k_c else float('-inf')
             B_upper = self.lexico_best[k_metric] + k_T if self.lexico_best[k_metric] > k_c else k_c
             if result[k_metric] >= B_lower and result[k_metric] <= B_upper:
                 continue
@@ -254,10 +249,10 @@ class FLOW2(Searcher):
                     self.lexico_best[up_metr] = result[up_metr]
                 return True
         # Compare with incumbent
-        for k_metric in self.lexico_info["metric_priority"]:
-            if result[k_metric] == self.best_obj[k_metric]:
+        for k_metr in self.lexico_info["metric_priority"]:
+            if result[k_metr] == self.best_obj[k_metr]:
                 continue
-            elif result[k_metric] < self.best_obj[k_metric]:
+            elif result[k_metr] < self.best_obj[k_metr]:
                 return True
             else:
                 return False

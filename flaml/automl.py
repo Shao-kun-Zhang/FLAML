@@ -341,12 +341,11 @@ class AutoMLState:
             * sample_size
             / state.data_size[0]
         )
-
         (
             trained_estimator,
             val_loss,
             metric_for_logging,
-            _,
+            train_time,
             pred_time,
         ) = compute_estimator(
             sampled_X_train,
@@ -375,11 +374,14 @@ class AutoMLState:
 
         result = {
             "pred_time": pred_time,
+            "train_time": train_time,
+            "train_time_log": np.log2(train_time),
             "wall_clock_time": time.time() - state._start_time_flag,
             "metric_for_logging": metric_for_logging,
             "val_loss": val_loss,
             "trained_estimator": trained_estimator,
         }
+        print(result)
         if sampled_weight is not None:
             this_estimator_kwargs["sample_weight"] = weight
         tune.report(**result)
@@ -1930,6 +1932,7 @@ class AutoML(BaseEstimator):
                 config["FLAML_sample_size"] = sample_size
             estimator = config["learner"]
             # check memory constraints before training
+            print("compare", states[estimator].learner_class.size(config), mem_res)
             if states[estimator].learner_class.size(config) <= mem_res:
                 del config["learner"]
                 result = AutoMLState._compute_with_config_base(
@@ -2529,6 +2532,7 @@ class AutoML(BaseEstimator):
         )
         # add custom learner
         for estimator_name in estimator_list:
+            print("estimator_name",estimator_name)
             if estimator_name not in self._state.learner_classes:
                 self.add_learner(
                     estimator_name,
